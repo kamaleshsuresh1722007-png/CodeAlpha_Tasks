@@ -1,40 +1,89 @@
-# 🌐 AI Language Translator
+# 🤖 AI FAQ Chatbot
 
-An interactive **AI-powered Language Translator** developed as **Project 1 of the CodeAlpha Artificial Intelligence Internship**.
+An intelligent **AI-powered FAQ Chatbot** developed as **Project 2 of the CodeAlpha Artificial Intelligence Internship**.
 
-The application provides a simple and user-friendly interface for translating text between multiple languages, with additional features such as automatic language detection, text-to-speech, translation history, favorites, language swapping, and dark mode.
+The chatbot is designed to answer frequently asked questions using a prepared FAQ knowledge base. It uses **Natural Language Processing (NLP)** and **TF-IDF with cosine similarity** to identify the most relevant answer for a user's question.
 
 ## 🚀 Features
 
-* 🌍 **Multi-Language Translation** — Translate text between multiple supported languages.
-* 🔍 **Automatic Language Detection** — Automatically detects the source language when enabled.
-* 🔄 **Swap Languages** — Quickly switch the source and target languages.
-* 🔊 **Text-to-Speech** — Listen to translated text using speech synthesis.
-* 📋 **Copy Translation** — Easily copy translated text.
-* 📥 **Download Translation** — Download translations as a text file.
-* 🕘 **Translation History** — Keep track of previous translations.
-* ⭐ **Favorite Translations** — Save important translations for quick access.
-* 📊 **Character & Word Count** — Displays text statistics.
-* 🌙 **Dark Mode** — Provides a comfortable interface for different viewing preferences.
-* 🧹 **Clear Text** — Quickly clear the input and translation fields.
+* 💬 **Interactive Chat Interface** — Users can ask questions through a simple chatbot interface.
+* 🧠 **NLP-Based Question Matching** — Processes user questions to identify relevant FAQ entries.
+* 🔎 **TF-IDF Vectorization** — Converts FAQ text into numerical representations for similarity analysis.
+* 📐 **Cosine Similarity** — Compares the user's question with available FAQs and selects the most relevant match.
+* 📚 **FAQ Knowledge Base** — Uses a structured dataset containing frequently asked questions and answers.
+* 🗂️ **Category-Based FAQs** — Includes categories such as AI, Machine Learning, Deep Learning, NLP, Python, Data Science, Streamlit & Tools, and General Support.
+* ⚡ **Fast Response Generation** — Quickly retrieves the most relevant answer from the FAQ dataset.
+* 🖥️ **Streamlit Interface** — Provides a clean and interactive web-based chatbot experience.
+* 🧹 **Text Preprocessing** — Uses NLP preprocessing techniques to improve question matching.
 
 ## 🛠️ Technologies Used
 
 * **Python**
 * **Streamlit**
-* **Deep Translator**
-* **Google Translator**
-* **gTTS (Google Text-to-Speech)**
-* **Pyperclip**
+* **NLTK**
+* **Scikit-learn**
+* **Pandas**
+* **TF-IDF Vectorization**
+* **Cosine Similarity**
 
 ## 📂 Project Structure
 
 ```text
-Task1_Language_Translator/
+Task2_AI_FAQ_Chatbot/
 │
 ├── app.py
+├── preprocess.py
 ├── requirements.txt
-└── README.md
+├── README.md
+│
+└── data/
+    └── faq.csv
+```
+
+## 📊 FAQ Dataset
+
+The chatbot uses a structured CSV dataset containing frequently asked questions and their corresponding answers.
+
+The dataset covers topics including:
+
+```text
+AI
+Machine Learning
+Deep Learning
+Natural Language Processing
+Python Programming
+Data Science
+Streamlit & Tools
+General & Support
+```
+
+The FAQ dataset provides the knowledge base from which the chatbot retrieves appropriate responses.
+
+## 🧠 How the Chatbot Works
+
+```text
+User Question
+      │
+      ▼
+Text Preprocessing
+      │
+      ▼
+TF-IDF Vectorization
+      │
+      ▼
+Cosine Similarity
+      │
+      ▼
+Compare with FAQ Knowledge Base
+      │
+      ▼
+Find Most Relevant Question
+      │
+      ▼
+Return Matching Answer
+      │
+      ▼
+Display Response
 ```
 
 ## ⚙️ Installation
@@ -48,7 +97,7 @@ git clone https://github.com/kaushiksrj17-cmyk/CodeAlpha_Tasks.git
 ### 2. Navigate to the project
 
 ```bash
-cd CodeAlpha_Tasks/Task1_Language_Translator
+cd CodeAlpha_Tasks/Task2_AI_FAQ_Chatbot
 ```
 
 ### 3. Create a virtual environment
@@ -71,98 +120,97 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## ▶️ Run the Application
+## ▶️ Run the Chatbot
 
-Start the Streamlit application with:
+Start the Streamlit application:
 
 ```bash
 streamlit run app.py
 ```
 
-The application will open in your web browser.
+The chatbot will open in your web browser.
 
 ## 💡 How It Works
 
-```text
-User Input
-    │
-    ▼
-Language Selection / Auto Detection
-    │
-    ▼
-Translation Engine
-    │
-    ▼
-Translated Text
-    │
-    ├── Text-to-Speech
-    ├── Copy
-    ├── Download
-    ├── Favorite
-    └── Translation History
-```
-
-## 🖥️ Application Workflow
-
-1. Enter the text that needs to be translated.
-2. Select the source language or enable automatic detection.
-3. Select the target language.
-4. Click the **Translate** button.
-5. View the translated result.
-6. Use additional features such as text-to-speech, copy, download, history, and favorites.
-7. Swap the languages when required.
+1. The user enters a question in the chatbot interface.
+2. The input is processed using NLP preprocessing techniques.
+3. The FAQ dataset is converted into TF-IDF vectors.
+4. The user's question is compared with the FAQ questions using cosine similarity.
+5. The system identifies the most relevant FAQ.
+6. The corresponding answer is displayed to the user.
 
 ## 📌 Example
 
-**Input:**
+**User Question:**
 
 ```text
-Hello, welcome to my AI project!
+What is artificial intelligence?
 ```
 
-**Source Language:**
+**Chatbot:**
 
 ```text
-English
+Artificial Intelligence is a field of computer science
+that focuses on creating systems capable of performing
+tasks that normally require human intelligence.
 ```
 
-**Target Language:**
+The chatbot selects the answer based on the similarity between the user's question and the questions stored in the FAQ dataset.
 
-```text
-Tamil
-```
+## 🔍 NLP Techniques Used
 
-The application processes the input and displays the translated result.
+### Text Preprocessing
+
+The project uses **NLTK** for preprocessing operations that help normalize and prepare text for similarity analysis.
+
+These operations can include:
+
+* Tokenization
+* Stop-word handling
+* Word normalization
+* Lemmatization
+
+### TF-IDF
+
+**Term Frequency–Inverse Document Frequency (TF-IDF)** converts text into numerical vectors based on the importance of words within the FAQ collection.
+
+### Cosine Similarity
+
+Cosine similarity measures how closely the user's question matches each FAQ question.
+
+The FAQ with the highest similarity score is selected as the most relevant response.
 
 ## 🎯 Project Objective
 
-The objective of this project is to develop a practical and interactive AI-based translation application while gaining hands-on experience with:
+The objective of this project is to build a practical FAQ chatbot using Natural Language Processing techniques while gaining hands-on experience with:
 
-* Python application development
-* Streamlit web application development
-* Translation APIs/libraries
-* Natural language processing concepts
-* Text-to-speech integration
-* User interface design
-* Git and GitHub project management
+* NLP
+* Text preprocessing
+* TF-IDF vectorization
+* Cosine similarity
+* Dataset handling
+* Python programming
+* Streamlit application development
+* Conversational AI concepts
 
 ## 🔮 Future Enhancements
 
-Possible future improvements include:
+Possible improvements include:
 
-* Voice input for translation
-* Real-time speech translation
-* Offline translation support
-* More advanced translation models
-* Mobile application support
-* Translation API optimization
-* User accounts and cloud-based history
-* Additional language support
+* 🤖 Integration with Large Language Models
+* 💾 Persistent conversation history
+* 🎤 Voice-based questions
+* 🌐 Multi-language FAQ support
+* 📊 Chatbot analytics dashboard
+* 🔄 Automatic FAQ dataset updates
+* 🔐 User authentication
+* ☁️ Cloud deployment
+* 🧠 Semantic embeddings using transformer models
 
 ## 👨‍💻 Internship Information
 
 **Program:** CodeAlpha Artificial Intelligence Internship
-**Project:** Project 1 — AI Language Translator
+**Project:** Project 2 — AI FAQ Chatbot
 **Developer:** S. Kaushik
 
 ## 📜 License

@@ -1,543 +1,956 @@
 import streamlit as st
-from deep_translator import GoogleTranslator
-from gtts import gTTS
-import pyperclip
+import pandas as pd
+import numpy as np
 import os
+import re
+import random
+from datetime import datetime
 
-# ======================================================
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+
+# ============================================================
 # PAGE CONFIGURATION
-# ======================================================
+# ============================================================
 
 st.set_page_config(
-    page_title="AI Language Translator",
-    page_icon="🌍",
-    layout="wide"
+    page_title="AI FAQ Chatbot Pro",
+    page_icon="🤖",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ======================================================
-# SESSION STATE
-# ======================================================
 
-if "source_lang" not in st.session_state:
-    st.session_state.source_lang = "Auto Detect"
+# ============================================================
+# CUSTOM CSS
+# ============================================================
 
-if "target_lang" not in st.session_state:
-    st.session_state.target_lang = "Tamil"
+st.markdown("""
+<style>
 
-if "input_text" not in st.session_state:
-    st.session_state.input_text = ""
+.main-title {
+    font-size: 42px;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 5px;
+}
 
-if "translated_text" not in st.session_state:
-    st.session_state.translated_text = ""
+.subtitle {
+    text-align: center;
+    font-size: 17px;
+    color: #777;
+    margin-bottom: 25px;
+}
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+.answer-card {
+    padding: 18px;
+    border-radius: 14px;
+    background-color: #f5f7fa;
+    border-left: 5px solid #4CAF50;
+    margin-top: 10px;
+}
 
-if "favorites" not in st.session_state:
-    st.session_state.favorites = []
+.info-card {
+    padding: 15px;
+    border-radius: 12px;
+    background-color: #f5f7fa;
+    margin-bottom: 10px;
+}
 
-# ======================================================
-# SIDEBAR
-# ======================================================
+.metric-card {
+    padding: 12px;
+    border-radius: 12px;
+    background-color: #f5f7fa;
+    text-align: center;
+}
 
-st.sidebar.title("⚙️ Settings")
+.small-text {
+    color: #777;
+    font-size: 13px;
+}
 
-dark_mode = st.sidebar.toggle("🌙 Dark Mode")
+</style>
+""", unsafe_allow_html=True)
 
-# ======================================================
-# DARK MODE CSS
-# ======================================================
 
-if dark_mode:
-
-    st.markdown(
-        """
-        <style>
-
-        .stApp{
-            background-color:#0E1117;
-            color:white;
-        }
-
-        textarea{
-            background:#262730 !important;
-            color:white !important;
-        }
-
-        div[data-baseweb="select"]{
-            color:black;
-        }
-
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ======================================================
+# ============================================================
 # TITLE
-# ======================================================
-
-st.title("🌍 AI Language Translator")
+# ============================================================
 
 st.markdown(
-"""
-Translate text instantly between **100+ languages**
-using **Google Translate**.
-"""
+    '<div class="main-title">🤖 AI FAQ Chatbot Pro</div>',
+    unsafe_allow_html=True
 )
 
-st.divider()
-
-# ======================================================
-# LANGUAGE DICTIONARY
-# ======================================================
-
-languages = {
-
-    "Auto Detect":"auto",
-
-    "English":"en",
-
-    "Tamil":"ta",
-
-    "Hindi":"hi",
-
-    "French":"fr",
-
-    "German":"de",
-
-    "Spanish":"es",
-
-    "Japanese":"ja",
-
-    "Korean":"ko",
-
-    "Chinese":"zh-CN",
-
-    "Arabic":"ar",
-
-    "Russian":"ru",
-
-    "Italian":"it",
-
-    "Portuguese":"pt",
-
-    "Malayalam":"ml",
-
-    "Kannada":"kn",
-
-    "Telugu":"te",
-
-    "Bengali":"bn",
-
-    "Gujarati":"gu",
-
-    "Punjabi":"pa",
-
-    "Urdu":"ur"
-
-}
-# ======================================================
-# USER INPUT
-# ======================================================
-
-st.subheader("✍️ Enter Text")
-
-text = st.text_area(
-    "Type text to translate",
-    value=st.session_state.input_text,
-    height=180,
-    placeholder="Example: Hello, how are you?"
+st.markdown(
+    '<div class="subtitle">'
+    'Intelligent FAQ assistant powered by NLP, TF-IDF and Cosine Similarity'
+    '</div>',
+    unsafe_allow_html=True
 )
 
-st.session_state.input_text = text
 
-# ======================================================
-# CHARACTER & WORD COUNT
-# ======================================================
+# ============================================================
+# TEXT PREPROCESSING
+# ============================================================
 
-char_count = len(text)
+def preprocess_text(text):
 
-word_count = len(text.split()) if text.strip() else 0
+    if pd.isna(text):
+        return ""
 
-metric1, metric2 = st.columns(2)
+    text = str(text).lower()
 
-with metric1:
-    st.metric("Characters", char_count)
-
-with metric2:
-    st.metric("Words", word_count)
-
-st.divider()
-
-# ======================================================
-# LANGUAGE SELECTION
-# ======================================================
-
-st.subheader("🌐 Select Languages")
-
-col1, col2 = st.columns(2)
-
-language_names = list(languages.keys())
-
-with col1:
-
-    source = st.selectbox(
-        "Source Language",
-        language_names,
-        index=language_names.index(st.session_state.source_lang)
+    text = re.sub(
+        r"[^a-zA-Z0-9\s]",
+        " ",
+        text
     )
 
-with col2:
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
 
-    target_languages = language_names[1:]  # Remove Auto Detect
+    return text
 
-    target = st.selectbox(
-        "Target Language",
-        target_languages,
-        index=target_languages.index(st.session_state.target_lang)
+
+# ============================================================
+# LOAD DATASET
+# ============================================================
+
+@st.cache_data
+def load_data():
+
+    file_path = os.path.join(
+        os.path.dirname(__file__),
+        "data",
+        "faq.csv"
     )
 
-st.session_state.source_lang = source
-st.session_state.target_lang = target
+    if not os.path.exists(file_path):
 
-# ======================================================
-# SWAP BUTTON
-# ======================================================
+        st.error(
+            "❌ FAQ dataset not found.\n\n"
+            "Expected location: data/faq.csv"
+        )
 
-swap_col1, swap_col2, swap_col3 = st.columns([1,1,1])
+        st.stop()
 
-with swap_col2:
+    # The dataset is tab-separated
+    data = pd.read_csv(
+        file_path,
+        sep="\t"
+    )
 
-    if st.button("🔄 Swap Languages", use_container_width=True):
+    # Clean column names
+    data.columns = (
+        data.columns
+        .astype(str)
+        .str.strip()
+    )
 
-        if source == "Auto Detect":
+    # Handle possible BOM in first column
+    data.columns = [
+        column.replace("\ufeff", "")
+        for column in data.columns
+    ]
 
-            st.warning("Auto Detect cannot be swapped.")
+    # Required columns
+    required = [
+        "Category",
+        "Question",
+        "Answer"
+    ]
 
-        else:
+    missing = [
+        column
+        for column in required
+        if column not in data.columns
+    ]
 
-            temp = st.session_state.source_lang
+    if missing:
 
-            st.session_state.source_lang = st.session_state.target_lang
+        st.error(
+            f"❌ Missing columns: {missing}\n\n"
+            f"Available columns: {list(data.columns)}"
+        )
 
-            st.session_state.target_lang = temp
+        st.stop()
 
-            st.rerun()
+    # Remove empty rows
+    data = data.dropna(
+        subset=[
+            "Question",
+            "Answer"
+        ]
+    ).reset_index(drop=True)
 
-st.divider()
-# ======================================================
-# TRANSLATE SECTION
-# ======================================================
+    # IMPORTANT:
+    # Create processed_question BEFORE build_model()
+    data["processed_question"] = (
+        data["Question"]
+        .astype(str)
+        .apply(preprocess_text)
+    )
 
-st.subheader("🌍 Translate")
+    return data
 
-if st.button("🚀 Translate", use_container_width=True):
 
-    # Validate Input
-    if text.strip() == "":
-        st.warning("Please enter some text to translate.")
+# ============================================================
+# BUILD TF-IDF MODEL
+# ============================================================
 
-    elif source == target:
-        st.warning("Source and Target languages cannot be the same.")
+@st.cache_resource
+def build_vectorizer(data):
+
+    vectorizer = TfidfVectorizer(
+        stop_words="english",
+        ngram_range=(1, 2)
+    )
+
+    matrix = vectorizer.fit_transform(
+        data["processed_question"]
+    )
+
+    return vectorizer, matrix
+
+
+# ============================================================
+# LOAD DATA + MODEL
+# ============================================================
+
+faq_data = load_data()
+
+vectorizer, tfidf_matrix = build_vectorizer(
+    faq_data
+)
+
+
+# ============================================================
+# SESSION STATE
+# ============================================================
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "search_history" not in st.session_state:
+    st.session_state.search_history = []
+
+if "favorite_questions" not in st.session_state:
+    st.session_state.favorite_questions = []
+
+if "last_result" not in st.session_state:
+    st.session_state.last_result = None
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.header("⚙️ Chatbot Controls")
+
+    # --------------------------------------------------------
+    # CATEGORY FILTER
+    # --------------------------------------------------------
+
+    st.subheader("📂 Category Filter")
+
+    categories = [
+        "All Categories"
+    ] + sorted(
+        faq_data["Category"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
+
+    selected_category = st.selectbox(
+        "Choose category",
+        categories
+    )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # DATASET INFORMATION
+    # --------------------------------------------------------
+
+    st.subheader("📊 Dataset")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric(
+            "FAQs",
+            len(faq_data)
+        )
+
+    with col2:
+        st.metric(
+            "Categories",
+            faq_data["Category"].nunique()
+        )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # CHAT CONTROLS
+    # --------------------------------------------------------
+
+    st.subheader("🧹 Chat Controls")
+
+    if st.button(
+        "🗑️ Clear Chat",
+        use_container_width=True
+    ):
+
+        st.session_state.messages = []
+        st.session_state.search_history = []
+        st.session_state.last_result = None
+
+        st.rerun()
+
+    if st.button(
+        "🔄 Reset Session",
+        use_container_width=True
+    ):
+
+        st.session_state.messages = []
+        st.session_state.search_history = []
+        st.session_state.favorite_questions = []
+        st.session_state.last_result = None
+
+        st.rerun()
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # FAVORITES
+    # --------------------------------------------------------
+
+    st.subheader("⭐ Favorites")
+
+    if st.session_state.favorite_questions:
+
+        for favorite in st.session_state.favorite_questions:
+            st.write(
+                f"• {favorite}"
+            )
 
     else:
 
-        try:
-
-            translated = GoogleTranslator(
-                source=languages[source],
-                target=languages[target]
-            ).translate(text)
-
-            # Save Translation
-            st.session_state.translated_text = translated
-
-            # Save to History
-            st.session_state.history.append({
-
-                "source": source,
-
-                "target": target,
-
-                "original": text,
-
-                "translated": translated
-
-            })
-
-            st.success("✅ Translation Successful!")
-
-        except Exception as e:
-
-            st.error("Translation Failed!")
-
-            st.error(str(e))
-
-# ======================================================
-# DISPLAY TRANSLATION
-# ======================================================
-
-if st.session_state.translated_text != "":
-
-    st.subheader("📄 Translated Text")
-
-    st.text_area(
-
-        "Translation",
-
-        value=st.session_state.translated_text,
-
-        height=180,
-
-        disabled=True
-
-    )
-
-st.divider()
-# ======================================================
-# EXTRA FEATURES
-# ======================================================
-
-if st.session_state.translated_text != "":
-
-    st.subheader("🛠 Translation Tools")
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-
-    # --------------------------------------------------
-    # COPY
-    # --------------------------------------------------
-
-    with col1:
-
-        if st.button("📋 Copy"):
-
-            pyperclip.copy(st.session_state.translated_text)
-
-            st.success("Copied to Clipboard!")
-
-    # --------------------------------------------------
-    # DOWNLOAD
-    # --------------------------------------------------
-
-    with col2:
-
-        st.download_button(
-
-            label="📥 Download",
-
-            data=st.session_state.translated_text,
-
-            file_name="translation.txt",
-
-            mime="text/plain"
-
+        st.caption(
+            "No favorite questions yet."
         )
 
-    # --------------------------------------------------
-    # TEXT TO SPEECH
-    # --------------------------------------------------
+    st.divider()
 
-    with col3:
+    # --------------------------------------------------------
+    # ABOUT
+    # --------------------------------------------------------
 
-        if st.button("🔊 Listen"):
+    st.subheader("ℹ️ About")
 
-            try:
+    st.write(
+        "This chatbot uses Natural Language Processing "
+        "to find the most relevant FAQ answer."
+    )
 
-                target_code = languages[st.session_state.target_lang]
+    st.write(
+        "**Technology:** TF-IDF + Cosine Similarity"
+    )
 
-                # gTTS doesn't support zh-CN directly
-                if target_code == "zh-CN":
-                    target_code = "zh"
+    st.write(
+        "**Framework:** Streamlit"
+    )
 
-                tts = gTTS(
-                    text=st.session_state.translated_text,
-                    lang=target_code
+    st.write(
+        "**Dataset:** FAQ knowledge base"
+    )
+
+
+# ============================================================
+# FILTER DATASET
+# ============================================================
+
+if selected_category == "All Categories":
+
+    filtered_data = faq_data.copy()
+
+else:
+
+    filtered_data = faq_data[
+        faq_data["Category"] == selected_category
+    ].copy()
+
+
+# ============================================================
+# CHAT HISTORY DISPLAY
+# ============================================================
+
+for message in st.session_state.messages:
+
+    with st.chat_message(
+        message["role"]
+    ):
+
+        st.markdown(
+            message["content"]
+        )
+
+
+# ============================================================
+# SUGGESTED QUESTIONS
+# ============================================================
+
+st.subheader("💡 Suggested Questions")
+
+suggestions = [
+    "What is Artificial Intelligence?",
+    "What is Machine Learning?",
+    "What is Deep Learning?",
+    "What is Generative AI?",
+    "What is Python?",
+    "What is Natural Language Processing?",
+]
+
+suggestion_cols = st.columns(3)
+
+for index, suggestion in enumerate(suggestions):
+
+    with suggestion_cols[index % 3]:
+
+        if st.button(
+            suggestion,
+            key=f"suggestion_{index}",
+            use_container_width=True
+        ):
+
+            st.session_state["selected_question"] = suggestion
+
+
+# ============================================================
+# USER QUESTION
+# ============================================================
+
+selected_question = st.session_state.pop(
+    "selected_question",
+    None
+)
+
+question = st.chat_input(
+    "💬 Ask your question..."
+)
+
+if selected_question:
+    question = selected_question
+
+
+# ============================================================
+# PROCESS QUESTION
+# ============================================================
+
+if question:
+
+    question = question.strip()
+
+    if question:
+
+        # ----------------------------------------------------
+        # USER MESSAGE
+        # ----------------------------------------------------
+
+        with st.chat_message("user"):
+
+            st.markdown(question)
+
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": question
+            }
+        )
+
+        # ----------------------------------------------------
+        # SEARCH HISTORY
+        # ----------------------------------------------------
+
+        timestamp = datetime.now().strftime(
+            "%d-%m-%Y %H:%M:%S"
+        )
+
+        st.session_state.search_history.append(
+            {
+                "question": question,
+                "timestamp": timestamp
+            }
+        )
+
+        # ----------------------------------------------------
+        # PREPROCESS
+        # ----------------------------------------------------
+
+        processed_question = preprocess_text(
+            question
+        )
+
+        # ----------------------------------------------------
+        # VECTORIZE
+        # ----------------------------------------------------
+
+        with st.spinner(
+            "🤖 Searching the FAQ knowledge base..."
+        ):
+
+            question_vector = (
+                vectorizer.transform(
+                    [processed_question]
+                )
+            )
+
+            # ------------------------------------------------
+            # SIMILARITY
+            # ------------------------------------------------
+
+            if selected_category == "All Categories":
+
+                similarity_scores = (
+                    cosine_similarity(
+                        question_vector,
+                        tfidf_matrix
+                    )[0]
                 )
 
-                filename = "translation.mp3"
+                search_data = faq_data
 
-                tts.save(filename)
+            else:
 
-                with open(filename, "rb") as audio_file:
+                filtered_indices = (
+                    filtered_data.index.tolist()
+                )
 
-                    st.audio(audio_file.read())
+                filtered_matrix = (
+                    tfidf_matrix[
+                        filtered_indices
+                    ]
+                )
 
-                os.remove(filename)
+                similarity_scores = (
+                    cosine_similarity(
+                        question_vector,
+                        filtered_matrix
+                    )[0]
+                )
 
-            except Exception as e:
+                search_data = filtered_data
 
-                st.error(f"Text-to-Speech Error: {e}")
+            # ------------------------------------------------
+            # BEST MATCH
+            # ------------------------------------------------
 
-    # --------------------------------------------------
-    # FAVORITES
-    # --------------------------------------------------
+            best_position = (
+                similarity_scores.argmax()
+            )
 
-    with col4:
+            best_score = float(
+                similarity_scores[best_position]
+            )
 
-        if st.button("⭐ Favorite"):
+            best_row = search_data.iloc[
+                best_position
+            ]
 
-            st.session_state.favorites.append({
+            best_question = str(
+                best_row["Question"]
+            )
 
-                "original": st.session_state.input_text,
+            best_answer = str(
+                best_row["Answer"]
+            )
 
-                "translated": st.session_state.translated_text,
+            best_category = str(
+                best_row["Category"]
+            )
 
-                "source": st.session_state.source_lang,
+        # ----------------------------------------------------
+        # CONFIDENCE
+        # ----------------------------------------------------
 
-                "target": st.session_state.target_lang
+        confidence = best_score * 100
 
-            })
+        # ----------------------------------------------------
+        # BOT RESPONSE
+        # ----------------------------------------------------
 
-            st.success("Added to Favorites!")
+        with st.chat_message("assistant"):
 
-    # --------------------------------------------------
-    # CLEAR
-    # --------------------------------------------------
+            if best_score < 0.15:
 
-    with col5:
+                st.warning(
+                    "🤔 I couldn't find a highly relevant "
+                    "answer in the FAQ database."
+                )
 
-        if st.button("🗑 Clear"):
+                st.write(
+                    "Try asking your question using different "
+                    "words."
+                )
 
-            st.session_state.input_text = ""
+                response_text = (
+                    "I couldn't find a highly relevant "
+                    "answer in the FAQ database."
+                )
 
-            st.session_state.translated_text = ""
+            else:
 
-            st.rerun()
+                if confidence >= 70:
+
+                    confidence_label = "🟢 High Confidence"
+
+                elif confidence >= 40:
+
+                    confidence_label = "🟡 Medium Confidence"
+
+                else:
+
+                    confidence_label = "🔴 Low Confidence"
+
+                st.success(
+                    f"{confidence_label} — "
+                    f"{confidence:.1f}%"
+                )
+
+                st.progress(
+                    min(
+                        confidence / 100,
+                        1.0
+                    )
+                )
+
+                st.markdown(
+                    f"### 📂 {best_category}"
+                )
+
+                st.markdown(
+                    f"**Matched Question:** "
+                    f"{best_question}"
+                )
+
+                st.markdown(
+                    f"""
+                    <div class="answer-card">
+
+                    <strong>🤖 Answer</strong>
+
+                    <br><br>
+
+                    {best_answer}
+
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                st.caption(
+                    f"🕒 {timestamp}"
+                )
+
+                response_text = best_answer
+
+                # ------------------------------------------------
+                # FAVORITE BUTTON
+                # ------------------------------------------------
+
+                if st.button(
+                    "⭐ Add to Favorites",
+                    key=f"favorite_{len(st.session_state.messages)}"
+                ):
+
+                    if (
+                        best_question
+                        not in st.session_state.favorite_questions
+                    ):
+
+                        st.session_state.favorite_questions.append(
+                            best_question
+                        )
+
+                        st.success(
+                            "Added to favorites!"
+                        )
+
+                # ------------------------------------------------
+                # RELATED QUESTIONS
+                # ------------------------------------------------
+
+                st.markdown(
+                    "### 🔗 Related Questions"
+                )
+
+                related_count = 0
+
+                for i, score in enumerate(
+                    similarity_scores
+                ):
+
+                    if i == best_position:
+                        continue
+
+                    if score > 0.05:
+
+                        related_question = str(
+                            search_data.iloc[i]["Question"]
+                        )
+
+                        st.write(
+                            f"• {related_question}"
+                        )
+
+                        related_count += 1
+
+                        if related_count >= 3:
+                            break
+
+        # ----------------------------------------------------
+        # SAVE BOT MESSAGE
+        # ----------------------------------------------------
+
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": response_text
+            }
+        )
+
+        st.session_state.last_result = {
+            "question": question,
+            "answer": response_text,
+            "category": best_category,
+            "confidence": confidence,
+            "timestamp": timestamp
+        }
+
+
+# ============================================================
+# DOWNLOAD CHAT HISTORY
+# ============================================================
 
 st.divider()
-# ======================================================
-# SIDEBAR - TRANSLATION HISTORY
-# ======================================================
 
-st.sidebar.divider()
-st.sidebar.header("📜 Translation History")
+st.subheader("📥 Downloads")
 
-if len(st.session_state.history) == 0:
+download_col1, download_col2 = st.columns(2)
 
-    st.sidebar.info("No translations yet.")
 
-else:
+# ------------------------------------------------------------
+# CHAT DOWNLOAD
+# ------------------------------------------------------------
 
-    for i, item in enumerate(reversed(st.session_state.history), start=1):
+with download_col1:
 
-        st.sidebar.markdown(f"""
-### {i}.
+    if st.session_state.messages:
 
-**{item['source']} ➜ {item['target']}**
+        chat_text = ""
 
-**Original:**
+        for message in st.session_state.messages:
 
-{item['original']}
+            role = message["role"].upper()
 
-**Translated:**
+            chat_text += (
+                f"{role}:\n"
+                f"{message['content']}\n\n"
+            )
 
-{item['translated']}
+        st.download_button(
+            "📥 Download Chat History",
+            data=chat_text,
+            file_name="faq_chat_history.txt",
+            mime="text/plain",
+            use_container_width=True
+        )
 
----
-""")
+    else:
 
-# ======================================================
-# CLEAR HISTORY
-# ======================================================
+        st.caption(
+            "No chat history available."
+        )
 
-if st.sidebar.button("🗑 Clear History"):
 
-    st.session_state.history = []
+# ------------------------------------------------------------
+# FAQ DOWNLOAD
+# ------------------------------------------------------------
 
-    st.success("History Cleared!")
+with download_col2:
 
-    st.rerun()
+    faq_download = faq_data[
+        [
+            "Category",
+            "Question",
+            "Answer"
+        ]
+    ].to_csv(
+        index=False
+    )
 
-# ======================================================
-# FAVORITES
-# ======================================================
+    st.download_button(
+        "📚 Download FAQ Dataset",
+        data=faq_download,
+        file_name="faq_dataset.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
 
-st.sidebar.divider()
 
-st.sidebar.header("⭐ Favorite Translations")
+# ============================================================
+# SEARCH HISTORY
+# ============================================================
 
-if len(st.session_state.favorites) == 0:
+if st.session_state.search_history:
 
-    st.sidebar.info("No favorites added.")
+    st.divider()
 
-else:
+    st.subheader("🔎 Search History")
 
-    for i, fav in enumerate(st.session_state.favorites, start=1):
+    history_df = pd.DataFrame(
+        st.session_state.search_history
+    )
 
-        st.sidebar.markdown(f"""
-### ⭐ {i}
+    st.dataframe(
+        history_df,
+        use_container_width=True,
+        hide_index=True
+    )
 
-**Original:**
 
-{fav['original']}
+# ============================================================
+# ANALYTICS
+# ============================================================
 
-**Translated:**
+st.divider()
 
-{fav['translated']}
+st.subheader("📊 FAQ Analytics")
 
----
-""")
+analytics_col1, analytics_col2 = st.columns(2)
 
-# ======================================================
-# CLEAR FAVORITES
-# ======================================================
 
-if st.sidebar.button("❌ Clear Favorites"):
+# ------------------------------------------------------------
+# CATEGORY DISTRIBUTION
+# ------------------------------------------------------------
 
-    st.session_state.favorites = []
+with analytics_col1:
 
-    st.success("Favorites Cleared!")
+    category_counts = (
+        faq_data["Category"]
+        .value_counts()
+    )
 
-    st.rerun()
+    st.write(
+        "### 📂 Questions by Category"
+    )
 
-# ======================================================
-# ABOUT
-# ======================================================
+    st.bar_chart(
+        category_counts
+    )
 
-st.sidebar.divider()
 
-st.sidebar.header("ℹ About")
+# ------------------------------------------------------------
+# FAQ TABLE
+# ------------------------------------------------------------
 
-st.sidebar.write("""
-**AI Language Translator**
+with analytics_col2:
 
-Built using:
+    st.write(
+        "### 📋 FAQ Knowledge Base"
+    )
 
-- Streamlit
-- Google Translator API
-- gTTS
-- Pyperclip
+    st.dataframe(
+        faq_data[
+            [
+                "Category",
+                "Question"
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True,
+        height=300
+    )
 
-Features:
 
-✅ Auto Detect Language
+# ============================================================
+# RANDOM FAQ
+# ============================================================
 
-✅ 20+ Languages
+st.divider()
 
-✅ Translation History
+st.subheader("🎲 Random FAQ")
 
-✅ Favorites
+if st.button(
+    "🎯 Show Random FAQ",
+    use_container_width=True
+):
 
-✅ Copy Translation
+    random_row = faq_data.iloc[
+        random.randint(
+            0,
+            len(faq_data) - 1
+        )
+    ]
 
-✅ Download Translation
+    st.info(
+        f"**Question:** {random_row['Question']}"
+    )
 
-✅ Text-to-Speech
+    st.success(
+        f"**Answer:** {random_row['Answer']}"
+    )
 
-✅ Dark Mode
+    st.caption(
+        f"Category: {random_row['Category']}"
+    )
 
-✅ Character & Word Count
 
-Developed using Python.
-""")
+# ============================================================
+# SYSTEM STATUS
+# ============================================================
 
-# ======================================================
+st.divider()
+
+st.subheader("🟢 System Status")
+
+status_col1, status_col2, status_col3 = st.columns(3)
+
+with status_col1:
+    st.success("Dataset Loaded")
+
+with status_col2:
+    st.success("NLP Model Ready")
+
+with status_col3:
+    st.success("Chatbot Online")
+
+
+# ============================================================
 # FOOTER
-# ======================================================
+# ============================================================
 
 st.divider()
 
-st.caption("🌍 AI Language Translator | Version 2.0")
-st.caption("Built with ❤️ using Streamlit")
+st.markdown(
+    """
+    <div style="text-align:center; color:#777;">
+
+    🤖 <strong>AI FAQ Chatbot Pro</strong><br>
+
+    Built for CodeAlpha Artificial Intelligence Internship<br>
+
+    NLP • TF-IDF • Cosine Similarity • Streamlit
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
